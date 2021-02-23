@@ -1,17 +1,18 @@
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
-// icon-color: pink; icon-glyph: camera-retro;
+// icon-color: red; icon-glyph: camera-retro;
 /* -----------------------------------------------
 
 Script      : ig-latest-post.js
 Author      : me@supermamon.com
-Version     : 2.0.0
+Version     : 2.0.1
 Description :
   Displays the latest instagram post of a selected
   user or users. Tap the widget to open the 
   Instagram post in the app
 
 Changelog:
+v2.0.1 - Fixed "TypeError: null is not an object (evaluating 'req.response.cookies.forEach')"
 v2.0.0 - Fixed 'format' error
        - Now works with private users 
        - Now works in restricted regions
@@ -88,12 +89,18 @@ const InstagramClient = {
     let req = new Request(url)
     await req.load()
     let result = {}
-    req.response.cookies.forEach(cookie => {
-      if (cookie.name == 'sessionid') {
-          result.sessionid = cookie.value; 
-          result.expiresDate = cookie.expiresDate
-        }
-    })
+    if (req.response.cookies) {
+      if (Array.isArray(req.response.cookies)) {
+        req.response.cookies.forEach(cookie => {
+          if (cookie.name == 'sessionid') {
+              result.sessionid = cookie.value; 
+              result.expiresDate = cookie.expiresDate
+              result.cookies = req.response.cookies
+            }
+        })
+    
+      } 
+    }
     if (!result.sessionid) {
       if (this.loginAttempts < this.MAX_ATTEMPTS) {
         this.loginAttempts++;
@@ -116,6 +123,7 @@ const InstagramClient = {
         throw new Error('Maximum number of login attempts reached. Please launch the script again.')
       }
     } else {
+      result.cookies = req.response.cookies
       await this.saveSession(result)
       this.sessionid = result.sessionid
       return result
@@ -160,11 +168,16 @@ const InstagramClient = {
   async fetchData(url) {
     log(`fetching ${url}`)
     let req = new Request(url)
+    var cookies = await this.getCookies()
+    log(cookies)
     req.headers = {
-      Cookie: `sessionid=${this.sessionid}`
+      Cookie: `${cookies}`
     }
     try {
-      var response = await req.loadJSON()
+      //var response = await req.loadJSON()
+      var response = await req.loadString()
+      log(response)
+      response = JSON.parse(response)
       return response
     } catch (e) {
       throw new Error(e.message)
@@ -195,13 +208,22 @@ const InstagramClient = {
   },
   //----------------------------------------------
   async readSession() {
+    log('reading session')
     if (this.fm.fileExists(this.sessionPath)) {
+      log(`file found`)
       if (this.USES_ICLOUD) {
         await this.fm.downloadFileFromiCloud(this.sessionPath)
       }
+      log(`reading session file`)
       let result = await this.fm.read(this.sessionPath)
-      if (!result || !result.toRawString()) return undefined
-      else return JSON.parse(result.toRawString())
+      if (!result || !result.toRawString()) {
+        log(`error reading file`)
+        return undefined
+      } else {
+        var session = JSON.parse(result.toRawString())
+        //log(this.session)
+        return session
+      }
     }
     return undefined
   },
@@ -213,6 +235,17 @@ const InstagramClient = {
       }
     }
     await this.fm.writeString(this.sessionPath, JSON.stringify(json))
+  },
+  async getCookies() {
+    var session = await this.readSession() 
+    log(session)
+    var cookies = session.cookies.map( cookie => {
+      log(`adding cookie ${cookie.name}`)
+      return `${cookie.name}=${cookie.value}`
+    }).join(';')
+    log(`returning cookies = ${cookies}`)
+    return cookies
+    
   },
   //----------------------------------------------
   async presentAlert(prompt="", items=["OK"], asSheet=false) {
@@ -234,6 +267,7 @@ const InstagramClient = {
 // Wisget code -----------------------------------
 
 InstagramClient.initialize()
+//await InstagramClient.logout()
 
 // only show the staus line is any of the
 // status items are visible
