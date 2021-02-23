@@ -5,7 +5,7 @@
 /* -----------------------------------------------
 Script      : InstagramClient.js
 Author      : me@supermamon.com
-Version     : 1.0.0
+Version     : 1.0.1
 Description :
   A scriptable module that can be used to access 
   Instagram
@@ -14,6 +14,7 @@ Description :
     github.com/wiebecommajonas/instagram-widget
 
 Changelog:
+v1.0.1 - Fixed "TypeError: null is not an object (evaluating 'req.response.cookies.forEach')"
 v1.0.0 - Initial release
 ----------------------------------------------- */
 
